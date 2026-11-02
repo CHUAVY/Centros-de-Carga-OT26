@@ -189,6 +189,7 @@
   .lvl-1 { background: #1e3a4a; color: #7ec8ff; }
   .lvl-2 { background: #4a3f1e; color: #ffe27e; }
   .lvl-3 { background: #4a1e1e; color: #ff8b8b; }
+  .lvl-4 { background: #3d1e4a; color: #e0a8ff; }
   .lvl-nd { background: #2a2a2a; color: #999; }
   #map {
     flex: 1;
@@ -418,8 +419,9 @@
       <select id="filterNivelAuto">
         <option value="">Todos los niveles</option>
         <option value="1">Nivel 1 (Lenta)</option>
-        <option value="2">Nivel 2 (Semirápida)</option>
-        <option value="3">Nivel 3 (DCFC)</option>
+        <option value="2">Nivel 2 (Semi-rápida)</option>
+        <option value="3">Nivel 3 (Rápida)</option>
+        <option value="4">Nivel 4 (Ultra rápida)</option>
         <option value="nd">Sin dato de potencia</option>
       </select>
       <select id="filterMunicipioAuto">
@@ -433,34 +435,20 @@
         <table class="ref-table">
           <thead>
             <tr>
-              <th>Nivel de Carga</th>
-              <th>Voltaje y Tipo de Corriente</th>
-              <th>Potencia Habitual (kW)</th>
-              
+              <th>Nivel</th>
+              <th>Velocidad</th>
+              <th>Potencia</th>
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td><b>Nivel 1</b><br><span class="sub">Carga Lenta / Residencial</span></td>
-              <td>120 V<br>Corriente Alterna (AC)</td>
-              <td><b>1.2 kW a 1.9 kW</b></td>
-              
-            </tr>
-            <tr>
-              <td><b>Nivel 2</b><br><span class="sub">Carga Semirápida / Comercial y Hogar</span></td>
-              <td>208 V – 240 V<br>Corriente Alterna (AC)</td>
-              <td><b>3.3 kW a 19.2 kW</b><br><span class="sub">(Común a 7.4 kW / 11 kW)</span></td>
-              
-            </tr>
-            <tr>
-              <td><b>Nivel 3 (DCFC)</b><br><span class="sub">Carga Rápida en Corriente Continua</span></td>
-              <td>400 V a 800 V+<br>Corriente Continua (DC)</td>
-              <td><b>50 kW a 350 kW+</b></td>
-              
-            </tr>
+            <tr><td><span class="level-badge lvl-1">1</span></td><td>Lenta</td><td><b>0 – 3.7 kW</b></td></tr>
+            <tr><td><span class="level-badge lvl-2">2</span></td><td>Semi-rápida</td><td><b>3.7 – 22 kW</b></td></tr>
+            <tr><td><span class="level-badge lvl-3">3</span></td><td>Rápida</td><td><b>50 – 150 kW</b></td></tr>
+            <tr><td><span class="level-badge lvl-4">4</span></td><td>Ultra rápida</td><td><b>+150 kW</b></td></tr>
           </tbody>
         </table>
       </div>
+      <p style="margin:-8px 0 16px;font-size:11.5px;color:#9aa4b2;line-height:1.5;">Cada cargador se clasifica por su potencia. La corriente alterna (AC) no se clasifica por encima del Nivel 2, y los cargadores de corriente continua entre 22 y 50 kW, que la tabla no cubre, se asignan al Nivel 3. Una estación con varios cargadores muestra cada nivel presente.</p>
 
       <div class="summary-cards" id="summaryCards"></div>
 
@@ -958,14 +946,10 @@ legend.addTo(map);
 
 // ---------------------------------------------------------------------
 // PESTAÑA 2: Autonomía de carga por estación
-// Clasifica cada estación en Nivel 1/2/3 según su potencia (kW) Y su tipo
-// de corriente (AC/DC), no solo el número de kW. Esto es importante porque
-// un cargador de 22 kW en Corriente Alterna (AC) sigue siendo un cargador
-// "Nivel 2 rápido" en la práctica, NO un Nivel 3 (DCFC) — el Nivel 3 es por
-// definición Corriente Continua (DC). Basarse solo en el kW clasificaría
-// mal esos casos límite.
-// Rangos de referencia: Nivel 1: 1.2-1.9 kW | Nivel 2: 3.3-19.2 kW (AC) |
-// Nivel 3/DCFC: 50-350+ kW (DC).
+// Clasifica cada cargador en Nivel 1-4 según su potencia (kW):
+// 1 Lenta 0-3.7 | 2 Semi-rápida 3.7-22 | 3 Rápida 50-150 | 4 Ultra rápida +150.
+// La corriente alterna (AC) nunca pasa del Nivel 2, y la corriente continua
+// entre 22 y 50 kW (hueco de la tabla) se asigna al Nivel 3.
 // ---------------------------------------------------------------------
 
 function parsePotencias(raw) {
@@ -976,24 +960,23 @@ function parsePotencias(raw) {
 }
 
 function classifyLevel(kw, tipoCorriente) {
-  if (kw <= 1.9) return 1;
-  const esAC = (tipoCorriente || '').toUpperCase().includes('AC');
-  if (esAC) return 2; // La corriente alterna nunca se considera Nivel 3, sin importar el kW
-  if (kw <= 19.2) return 2;
-  return 3;
+  const esAC = /^\s*AC\b/i.test(tipoCorriente || '');
+  if (kw <= 3.7) return 1;
+  if (kw <= 22) return 2;
+  if (esAC) return 2;
+  if (kw <= 150) return 3;
+  return 4;
 }
 
 function levelBadge(lvl) {
-  const map = {
-    1: '<span class="level-badge lvl-1">Nivel 1</span>',
-    2: '<span class="level-badge lvl-2">Nivel 2</span>',
-    3: '<span class="level-badge lvl-3">Nivel 3</span>'
-  };
-  return map[lvl] || '<span class="level-badge lvl-nd">Sin dato</span>';
+  const nombres = { 1: 'Nivel 1 · Lenta', 2: 'Nivel 2 · Semi-rápida', 3: 'Nivel 3 · Rápida', 4: 'Nivel 4 · Ultra rápida' };
+  return nombres[lvl]
+    ? '<span class="level-badge lvl-' + lvl + '">' + nombres[lvl] + '</span>'
+    : '<span class="level-badge lvl-nd">Sin dato</span>';
 }
 
 function levelName(lvl) {
-  return { 1: 'Nivel 1', 2: 'Nivel 2', 3: 'Nivel 3' }[lvl] || 'sin nivel identificado';
+  return { 1: 'Nivel 1', 2: 'Nivel 2', 3: 'Nivel 3', 4: 'Nivel 4' }[lvl] || 'sin nivel identificado';
 }
 
 function describeNiveles(niveles) {
@@ -1042,7 +1025,7 @@ function renderAutonomia() {
   const muniFiltro = document.getElementById('filterMunicipioAuto').value;
   const searchFiltro = document.getElementById('searchBoxAuto').value.toLowerCase();
 
-  const counts = { 1: 0, 2: 0, 3: 0, nd: 0 };
+  const counts = { 1: 0, 2: 0, 3: 0, 4: 0, nd: 0 };
   const rows = [];
 
   autonomiaData.forEach(item => {
@@ -1094,8 +1077,9 @@ function renderAutonomia() {
 
   document.getElementById('summaryCards').innerHTML =
     '<div class="summary-card"><div class="num">' + counts[1] + '</div><div class="lbl">Nivel 1 (Lenta)</div></div>' +
-    '<div class="summary-card"><div class="num">' + counts[2] + '</div><div class="lbl">Nivel 2 (Semirápida)</div></div>' +
-    '<div class="summary-card"><div class="num">' + counts[3] + '</div><div class="lbl">Nivel 3 (DCFC)</div></div>' +
+    '<div class="summary-card"><div class="num">' + counts[2] + '</div><div class="lbl">Nivel 2 (Semi-rápida)</div></div>' +
+    '<div class="summary-card"><div class="num">' + counts[3] + '</div><div class="lbl">Nivel 3 (Rápida)</div></div>' +
+    '<div class="summary-card"><div class="num">' + counts[4] + '</div><div class="lbl">Nivel 4 (Ultra rápida)</div></div>' +
     '<div class="summary-card"><div class="num">' + counts.nd + '</div><div class="lbl">Sin dato de potencia</div></div>';
 }
 
